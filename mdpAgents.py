@@ -144,7 +144,7 @@ class MDPAgent(Agent):
             if (remaingTimeGhostEdible < 5 and distanceToClosestGhost < 5):
                 reward += self.ghostReward / distanceToClosestGhost
 
-            # If a ghost is edible, tthen the ghost and squares within a distance of 4 will receive a fraction
+            # If a ghost is edible, then the ghost and squares within a distance of 4 will receive a fraction
             # of the additive inverse of ghostReward according to its distance from the ghost.
             elif (remaingTimeGhostEdible > 5 and distanceToClosestGhost < 5):
                 reward += (-self.ghostReward) / distanceToClosestGhost
@@ -167,7 +167,7 @@ class MDPAgent(Agent):
         if (pose in self.capsules):
             # If a ghost is not edible and is too close from pacman, then pacman should eat a capsule
             # In that case, the capsule will have a higher reward as an incentive for pacman to go eat the capsule
-            if (self.shouldEatCapsule(pose, closestGhost, indexClosestGhost) == True):
+            if (self.mustEatCapsule(closestGhost, indexClosestGhost) == True):
                 reward += 2
             else:
                 reward += 1
@@ -223,7 +223,11 @@ class MDPAgent(Agent):
     # This function updates the map with the appropriate values for each state (or position/square)
     def valueIteration(self):
         counter = 0
-        maxCounter = self.width + self.height + 1
+        # The number of iterations is proportional to the size of the map
+        if (self.width > 10):
+            maxCounter = 32
+        else:
+            maxCounter = 15
 
         while (self.currentMap != self.previousMap and counter < maxCounter):
             counter = counter + 1
@@ -231,6 +235,7 @@ class MDPAgent(Agent):
 
             for state in self.previousMap:
                 self.currentMap[state] = self.getRewardOfState(state) + (self.discountFactor * self.getUtility(state))
+        # Uncomment for debugging purposes
         # print (str(counter) + " iterations necessary")
 
     # @return bestDirection: The best direction pacman can goes to according to the optimal policy
@@ -357,7 +362,7 @@ class MDPAgent(Agent):
     # @param: closesGhost: currnet position of the closest ghost to Pacman
     #
     # @return: True is pacman is close to a ghost and this ghost is not edible, false otherwise
-    def shouldEatCapsule(self, SQUARE, closestGhost, indexClosestGhost):
+    def mustEatCapsule(self, closestGhost, indexClosestGhost):
         pacmanDistanceToClosestGhost = self.getDistanceToClosestGhost(self.pacman, closestGhost)
         # If pacman is close to a ghost and this ghost is not edible, then pacman should focus on eating a capsule
         if (pacmanDistanceToClosestGhost < 3 and self.isGhostScared(indexClosestGhost) == False):
