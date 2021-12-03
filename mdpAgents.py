@@ -82,16 +82,19 @@ class MDPAgent(Agent):
         states = self.getSetOfStates(self.width, self.height)
         self.currentMap = self.initStates(states)
 
+        # Uncomment the line below for debugging purposes
         #self.printInformationBeforeUpdate()
 
-        self.bellmanIteration()
+        self.valueIteration()
 
+        # Uncomment the line belows for debugging purposes
         #self.printInformationAfterUpdate()
-
         # print("")
         # print("legal directions are: " + str(self.legal))
 
         pick = self.getBestDirection()
+
+        # Uncomment the line below for debugging purposes
         # print("Pick is: " + str(pick))
         # print("\n\n")
 
@@ -101,15 +104,18 @@ class MDPAgent(Agent):
     # @param width: width of the map
     # @param height: height of the map
     #
-    #  @return: list of all possible states (squares) that either pacman or a ghost can be in
+    #  @return: list of all possible states (or positions/squares) that either pacman or a ghost can be in
     def getSetOfStates(self, width, height):
         states = []
         for x in range(1, width - 1):
             for y in range(1, height - 1):
-                if ((x, y) not in self.walls):  # and (x,y) not in self.food and (x,y) not in self.ghosts):
+                if ((x, y) not in self.walls):
                     states.append((x, y))
         return states
 
+    # Initialize all the possible positions (state/square) in the map with a value of 0 and store them into a dictionary:
+    # key: the position (state/square)
+    # value: the associated utility to this position
     def initStates(self, states):
         statesInit = {}
         for state in states:
@@ -118,9 +124,10 @@ class MDPAgent(Agent):
 
     # @param state: a state (position) from the map
     #
-    # @return reward: the rewards associated with the state input by the user
+    # @return reward: the reward associated with the state input by the user
     def getRewardOfState(self, pose):
         reward = 0
+
         closestGhost = self.getClosestGhost(pose)
         indexClosestGhost = self.ghosts.index(closestGhost)
         distanceToClosestGhost = self.getDistanceToClosestGhost(pose, closestGhost)
@@ -128,23 +135,28 @@ class MDPAgent(Agent):
         if (distanceToClosestGhost == 0):
             distanceToClosestGhost = 1
 
-        # If a state is within a distance of 5 (mediumClassic map) or 2 (smallMDP map) from pacman, then the reward of that state
-        # is going to be the reward of a ghost divided by the distance from this ghost
-        # Example: state is at a distance of 2 square from pacman: Reward(state) = ghostReward / 2
-        if (self.width > 10): # Goes here if the map is mediumClassic
+
+        # Goes here i the map is mediumClassic
+        if (self.width > 10):
+
+            # If a ghost is not edible, then the ghost and squares within a distance of 4 will receive a fraction
+            # of the ghostReward according to its distance from the ghost.
             if (remaingTimeGhostEdible < 5 and distanceToClosestGhost < 5):
-                self.ghostReward = -2
                 reward += self.ghostReward / distanceToClosestGhost
+
+            # If a ghost is edible, tthen the ghost and squares within a distance of 4 will receive a fraction
+            # of the additive inverse of ghostReward according to its distance from the ghost.
             elif (remaingTimeGhostEdible > 5 and distanceToClosestGhost < 5):
-                self.ghostReward = 2
-                reward += self.ghostReward / distanceToClosestGhost
-        else:  # Goes here if the map is smallGrid
+                reward += (-self.ghostReward) / distanceToClosestGhost
+
+        # Goes here if the map is smallGrid
+        else:
             if (remaingTimeGhostEdible < 5 and distanceToClosestGhost < 2):
-                self.ghostReward = -3 # 1595/2500 (0.64)
-                #self.ghostReward = -2 # 1532/2500 (0.61)
-                reward += self.ghostReward / distanceToClosestGhost
+                self.ghostReward = -3
+                reward += (self.ghostReward - 1) / distanceToClosestGhost
 
 
+        # Ghost receive a negative reward if it is either not edible or close to not be edible
         if (pose in self.ghosts):
             if (remaingTimeGhostEdible < 4):
                 reward += self.ghostReward
@@ -152,8 +164,9 @@ class MDPAgent(Agent):
         if pose in self.food:
             reward += self.foodReward
 
-        # If a ghost is not edible and is too close from pacman, then pacman should eat a capsule
         if (pose in self.capsules):
+            # If a ghost is not edible and is too close from pacman, then pacman should eat a capsule
+            # In that case, the capsule will have a higher reward as an incentive for pacman to go eat the capsule
             if (self.shouldEatCapsule(pose, closestGhost, indexClosestGhost) == True):
                 reward += 2
             else:
@@ -170,8 +183,8 @@ class MDPAgent(Agent):
         maxUtility = -1000
         for direction in self.directions:
             utility = self.getUtilityForward(pose, direction)
-            utility += self.getUtilitySide(pose, Directions.LEFT[direction])
-            utility += self.getUtilitySide(pose, Directions.RIGHT[direction])
+            utility += self.getUtilityLateral(pose, Directions.RIGHT[direction])
+            utility += self.getUtilityLateral(pose, Directions.LEFT[direction])
 
             if utility > maxUtility:
                 maxUtility = utility
@@ -180,8 +193,7 @@ class MDPAgent(Agent):
     # @param pose: a position in the map
     # @param direction: the direction pacman wants to go to (80% of chance of success)
     #
-    # @return utilityForward: the utility value if pacman successfully goes into the direction
-    # input by the user
+    # @return utilityForward: the utility value if pacman successfully goes into the direction input by the user
     def getUtilityForward(self, pose, direction):
         nextPose = self.getNextPose(pose, direction)
         if nextPose in self.walls:
@@ -195,27 +207,30 @@ class MDPAgent(Agent):
     # @param pose: a position in the map
     # @param direction: the direction pacman wants to go to (80% of chance of success)
     #
-    # @return utilitySide: the utility value if pacman goes to the side of the desired direction
-    def getUtilitySide(self, pose, direction):
+    # @return utilityLateral: the utility value if pacman goes to the side of the desired direction
+    def getUtilityLateral(self, pose, direction):
         nextPose = self.getNextPose(pose, direction)
         if nextPose in self.walls:
             nextPose = pose
 
         # (1 - api.directionProb) / 2 allows us to get the probability that a direction is going
-        # to be fail to be executed and that a side movement is executed instead.
-        utilitySide = ((1 - api.directionProb) / 2) * self.previousMap[nextPose]
-        return utilitySide
+        # to fail to be executed and that a side movement is executed instead.
+        utilityLateral = ((1 - api.directionProb) / 2) * self.previousMap[nextPose]
+        return utilityLateral
 
-    def bellmanIteration(self):
+    # This is the function used to find the optimal policy that pacman can use
+    # to move around the map to eat the food.
+    # This function updates the map with the appropriate values for each state (or position/square)
+    def valueIteration(self):
         counter = 0
 
-        while (self.currentMap != self.previousMap and counter < 20):
+        while (self.currentMap != self.previousMap): #and counter < 20):
             counter = counter + 1
             self.previousMap = self.currentMap.copy()
 
             for state in self.previousMap:
                 self.currentMap[state] = self.getRewardOfState(state) + (self.discountFactor * self.getUtility(state))
-        #print (str(counter) + " iterations necessary")
+        # print (str(counter) + " iterations necessary")
 
     # @return bestDirection: The best direction pacman can goes to according to the optimal policy
     # we obtained from the MDP solver (the bellmanIteration() function)
@@ -249,6 +264,9 @@ class MDPAgent(Agent):
         if Directions.STOP in self.legal:
             self.legal.remove(Directions.STOP)
 
+    # @param corners: the coordinate of the fours corners of the map
+    #
+    # @return width: the width of the map
     def getLayoutWidth(self, corners):
         width = -1
         for i in range(len(corners)):
@@ -256,6 +274,9 @@ class MDPAgent(Agent):
                 width = corners[i][0]
         return width + 1
 
+    # @param corners: the coordinate of the fours corners of the map
+    #
+    # @return height: the height of the map
     def getLayoutHeight(self, corners):
         height = -1
         for i in range(len(corners)):
@@ -263,6 +284,10 @@ class MDPAgent(Agent):
                 height = corners[i][1]
         return height + 1
 
+    # @param currentPos: the pose form which we want to know where we will end up by going into a specific direction
+    # @param direction: the direction we want to go to
+    #
+    # @return: the position (square/state) we will end u if we go into the direction input as a parameter
     def getNextPose(self, currentPos, direction):
         if direction == Directions.NORTH:
             return (currentPos[0], currentPos[1] + 1)
@@ -273,10 +298,16 @@ class MDPAgent(Agent):
         elif direction == Directions.EAST:
             return (currentPos[0] + 1, currentPos[1])
 
+    # @param ghost: the ghost from which we want to know the state
+    #
+    # @return: the state of the ghost. If the ghost is edible/scared -> returns 1, 0 otherwise
     def getGhostState(self, ghost):
         ghostState = [index for (index, test) in enumerate(self.ghostStates) if test[0] == ghost]
         return self.ghostStates[ghostState[0]][1]
 
+    # @param pose: the position (square/state) from which we want to know the closest ghost
+    #
+    # @return: the closest ghost from the position (square/state) input as a parameter
     def getClosestGhost(self, pose):
         smallestDistance = 1000
         closestGhost = self.ghosts[0]
@@ -287,13 +318,23 @@ class MDPAgent(Agent):
                 closestGhost = ghost
         return closestGhost
 
+    # @param pose: the position (square/state) from which we want to know the distance from the closest ghost
+    # @param closestGhost: the closest ghost from the position input as a parameter (pose)
+    #
+    # @return: the distance between the positio (sqaure/state) input by the user and the closest ghost from this position
     def getDistanceToClosestGhost(self, pose, closestGhost):
         return abs(closestGhost[1] - pose[1]) + abs(closestGhost[0] - pose[0])
 
+    # @param ghostIndex: the index in the ghostStates list of the ghost we want to check the state
+    # @return: False is the ghost is not scared, True otherwise
     def isGhostScared(self, ghostIndex):
         if self.ghostStates[ghostIndex][1] == 0:
             return False
+        else:
+            return True
 
+    # Useful to print information regarding the different position (state/square) of the map and their associated
+    # utilities as well as the position of pacman, ghosts, food, and capsules before the value iteration process.
     def printInformationBeforeUpdate(self):
 
         print("ghost at:" + str(self.ghosts))
@@ -304,6 +345,8 @@ class MDPAgent(Agent):
         print("current map before update:")
         print(self.currentMap)
 
+    # Useful to print information regarding the different position (state/square) of the map and their associated
+    # utilities after the value iteration process.
     def printInformationAfterUpdate(self):
         print("\n current map updated:")
         print(self.currentMap)
@@ -320,7 +363,3 @@ class MDPAgent(Agent):
             return True
         else:
             return False
-
-    #################
-    # GET FUNCTIONS #
-    #################
