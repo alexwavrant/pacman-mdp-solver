@@ -223,8 +223,9 @@ class MDPAgent(Agent):
     # This function updates the map with the appropriate values for each state (or position/square)
     def valueIteration(self):
         counter = 0
+        maxCounter = self.width + self.height + 1
 
-        while (self.currentMap != self.previousMap): #and counter < 20):
+        while (self.currentMap != self.previousMap and counter < maxCounter):
             counter = counter + 1
             self.previousMap = self.currentMap.copy()
 
